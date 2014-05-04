@@ -1,6 +1,6 @@
 'use strict';
 
-App.connectors['XMPP'] = function (account) {
+App.connectors['OAUTH-G'] = function (account) {
   
   this.account = account;
   this.provider = Providers.data[account.core.provider];
@@ -108,7 +108,7 @@ App.connectors['XMPP'] = function (account) {
       }
     });
   }.bind(this);
-  
+  x
   this.capabilize = function () {
     var caps = [
       ['attention', Strophe.NS.XEP0224],
@@ -370,64 +370,49 @@ App.connectors['XMPP'] = function (account) {
   
 }
 
-App.logForms['XMPP'] = function (article, provider, data) {
+App.logForms['OAUTH-G'] = function (article, provider, data) {
   article
     .append($('<h1/>').style('color', data.color).html(_('SettingUp', { provider: data.longName })))
-    .append($('<img/>').attr('src', 'img/providers/' + provider + '.svg'))
-    .append($('<label/>').attr('for', 'user').text(_(data.terms['user'], { provider: data.altname })))
-    .append($('<input/>').attr('type', data.terms.userInputType).attr('x-inputmode', 'verbatim').attr('name', 'user').attr('placeholder', (data.terms.placeholder || _(data.terms['user'], { provider: data.altname }) )))
-    .append($('<label/>').attr('for', 'pass').text(_(data.terms['pass'])))
-    .append($('<input/>').attr('type', 'password').attr('name', 'pass').attr('placeholder', '******'));
-  if (data.notice) {
-    article.append($('<small/>').html(_(provider + 'Notice')));
-  }
+    .append($('<img/>').attr('src', 'img/providers/' + provider + '.svg'));
   var buttongroup = $('<div/>').addClass('buttongroup');
   var submit = $('<button/>').data('role', 'submit').style('backgroundColor', data.color).text(_('LogIn'));
   var back = $('<button/>').data('view-section', 'back').text(_('GoBack'));
   submit.bind('click', function () {
     var article = this.parentNode.parentNode;
     var provider = article.parentNode.id;
-    var user = Providers.autoComplete($(article).children('[name="user"]').val(), provider);
-    var pass = $(article).children('[name="pass"]').val();
-    var cc = $(article).children('[name="cc"]').val();
-    if (user && pass) {
-      var account = new Account({
-        user: user,
-        pass: pass,
-        provider: provider,
-        resource: App.defaults.Account.core.resource,
-        enabled: true,
-        chats: []
-      });
-      account.test();
-    }
+    Tools.log('OAuth in action');
   });
   buttongroup.append(submit).append(back);
   article.append(buttongroup);
 }
 
-App.emoji['XMPP'] = {
+App.emoji['GTALK'] = {
   
   map: [
-    ['emoji1', '>:-(', '>:('],
-    ['emoji2', ';)', ';-)'],
-    ['emoji3', ':-!', ':!'],
-    ['emoji4', ':-[', ':['],
-    ['emoji5', ':-$', ':$'],
-    ['emoji6', ':-\\'],
-    ['emoji7', ':\'('],
-    ['emoji8', ':-(', ':('],
-    ['emoji9', '8-)', '8)'],
-    ['emoji10', ':-D', ':D'],
-    ['emoji11', '>:O'],
-    ['emoji12', ':-O', ':O', '=-O'],
-    ['emoji13', 'O:-)'],
-    ['emoji14', ':-)', ':)'],
-    ['emoji15', ':-P', ':P'],
-    ['emoji16', ':-X'],
-    ['emoji17', ':kiss:', ':heart:'],
-    ['emoji18', ':yes:'],
-    ['emoji19', ':no:']
+    ['angry', 'x-('],
+    ['brokenheart', '&lt;/3'],
+    ['cool', 'B-)'],
+    ['cowbell', '+/\'\\'],
+    ['crab', 'V.v.V'],
+    ['cry', ':\'('],
+    ['devil', '}:-)'],
+    ['frown', ':(', '=(', ':-('],
+    ['grin', ':D', '=D', ':-D'],
+    ['heart', '&lt;3'],
+    ['kissstar', ':*', ':-x'],
+    ['monkey', ':(|)'],
+    ['mustache', ':{'],
+    ['pig', ':(:)'],
+    ['poop', '~@~'],
+    ['robot', ':|]'],
+    ['rockout', '\\m/'],
+    ['shocked', ':-o'],
+    ['slant', ':-/', '=/'],
+    ['smile', ':)', '=D', ':-)'],
+    ['straightface', ':-\|'],
+    ['tongue', ':p', ':P', '=p', '=P', ':-p', ':-P'],
+    ['wince', '\\>.\\<'],
+    ['wink', ';)', ';-)', ';^)']
   ],
 
   fy: function (text) {
@@ -439,7 +424,7 @@ App.emoji['XMPP'] = {
         for (var j in map[i].slice(1)) {
           var token = map[i].slice(1)[j].replace(/([\*\|\(\)\[\]\\\$\{\}\.\+\?\^])/g, '\\$1');
           var rexp = new RegExp('('+token+')', 'g');
-          mapped = mapped.replace(rexp, '<img src="img/emoji/xmpp/'+original+'.png" alt="$1" />');
+          mapped = mapped.replace(rexp, '<img src="img/emoji/gtalk/'+original+'.gif" alt="$1" />');
           if (mapped != text) {
             return mapped;
           }
@@ -451,7 +436,7 @@ App.emoji['XMPP'] = {
   
   render: function (img, emoji) {
     img
-      .attr('src', 'img/emoji/xmpp/' + emoji[0] + '.png')
+      .attr('src', 'img/emoji/gtalk/' + emoji[0] + '.gif')
       .data('emoji', emoji[1]);
   }
   

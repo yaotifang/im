@@ -22,39 +22,28 @@ var Providers = {
       longName: 'Facebook Chat',
       altname: 'Facebook',
       connector: {
-        type: 'XMPP',
+        type: 'OAUTH-FB',
         host: 'https://bosh.loqui.im/',
         timeout: 300
       },
       autodomain: 'chat.facebook.com',
       features: ['vcard', 'presence', 'easyAvatars', 'csn'],
       color: '#3D539F',
-      terms: {
-        user: 'ProviderUsername',
-        pass: 'Password',
-        userInputType: 'text'
-      },
-      notice: true,
+      logForm: 'OAUTH-FB',
       emoji: 'FB'
     },
     'hangouts': {
       longName: 'Google Hangouts',
       altname: 'Gmail',
       connector: {
-        type: 'XMPP',
+        type: 'OAUTH-G',
         host: 'https://bosh.loqui.im/',
         timeout: 300
       },
       autodomain: 'gmail.com',
       features: ['multi', 'presence', 'vcard', 'easyAvatars', 'avatarChange', 'rosterMgmt', 'csn', 'delay', 'statusChange', 'attention', 'show'],
       color: '#4EA43B',
-      terms: {
-        user: 'ProviderAddress',
-        pass: 'Password',
-        placeholder: 'username@gmail.com',
-        userInputType: 'email'
-      },
-      notice: true,
+      logForm: 'OAUTH-G',
       emoji: 'GTALK'
     },
     'nimbuzz': {

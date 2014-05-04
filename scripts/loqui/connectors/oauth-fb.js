@@ -1,6 +1,6 @@
 'use strict';
 
-App.connectors['XMPP'] = function (account) {
+App.connectors['OAUTH-FB'] = function (account) {
   
   this.account = account;
   this.provider = Providers.data[account.core.provider];
@@ -370,64 +370,51 @@ App.connectors['XMPP'] = function (account) {
   
 }
 
-App.logForms['XMPP'] = function (article, provider, data) {
+App.logForms['OAUTH-FB'] = function (article, provider, data) {
   article
     .append($('<h1/>').style('color', data.color).html(_('SettingUp', { provider: data.longName })))
-    .append($('<img/>').attr('src', 'img/providers/' + provider + '.svg'))
-    .append($('<label/>').attr('for', 'user').text(_(data.terms['user'], { provider: data.altname })))
-    .append($('<input/>').attr('type', data.terms.userInputType).attr('x-inputmode', 'verbatim').attr('name', 'user').attr('placeholder', (data.terms.placeholder || _(data.terms['user'], { provider: data.altname }) )))
-    .append($('<label/>').attr('for', 'pass').text(_(data.terms['pass'])))
-    .append($('<input/>').attr('type', 'password').attr('name', 'pass').attr('placeholder', '******'));
-  if (data.notice) {
-    article.append($('<small/>').html(_(provider + 'Notice')));
-  }
+    .append($('<img/>').attr('src', 'img/providers/' + provider + '.svg'));
   var buttongroup = $('<div/>').addClass('buttongroup');
   var submit = $('<button/>').data('role', 'submit').style('backgroundColor', data.color).text(_('LogIn'));
   var back = $('<button/>').data('view-section', 'back').text(_('GoBack'));
   submit.bind('click', function () {
     var article = this.parentNode.parentNode;
     var provider = article.parentNode.id;
-    var user = Providers.autoComplete($(article).children('[name="user"]').val(), provider);
-    var pass = $(article).children('[name="pass"]').val();
-    var cc = $(article).children('[name="cc"]').val();
-    if (user && pass) {
-      var account = new Account({
-        user: user,
-        pass: pass,
-        provider: provider,
-        resource: App.defaults.Account.core.resource,
-        enabled: true,
-        chats: []
-      });
-      account.test();
-    }
+    Tools.log('OAuth in action');
   });
   buttongroup.append(submit).append(back);
   article.append(buttongroup);
 }
 
-App.emoji['XMPP'] = {
+App.emoji['FB'] = {
   
   map: [
-    ['emoji1', '>:-(', '>:('],
-    ['emoji2', ';)', ';-)'],
-    ['emoji3', ':-!', ':!'],
-    ['emoji4', ':-[', ':['],
-    ['emoji5', ':-$', ':$'],
-    ['emoji6', ':-\\'],
-    ['emoji7', ':\'('],
-    ['emoji8', ':-(', ':('],
-    ['emoji9', '8-)', '8)'],
-    ['emoji10', ':-D', ':D'],
-    ['emoji11', '>:O'],
-    ['emoji12', ':-O', ':O', '=-O'],
-    ['emoji13', 'O:-)'],
-    ['emoji14', ':-)', ':)'],
-    ['emoji15', ':-P', ':P'],
-    ['emoji16', ':-X'],
-    ['emoji17', ':kiss:', ':heart:'],
-    ['emoji18', ':yes:'],
-    ['emoji19', ':no:']
+    ['emoji1', ':)'],
+    ['emoji2', ':('],
+    ['emoji3', ':P'],
+    ['emoji4', ':D'],
+    ['emoji5', ':O'],
+    ['emoji6', ':3'],
+    ['emoji7', '8)'],
+    ['emoji8', '8|'],
+    ['emoji9', '>:('],
+    ['emoji10', ':\\', ':/'],
+    ['emoji11', ':\'('],
+    ['emoji12', '3:)'],
+    ['emoji13', ':*'],
+    ['emoji14', '<3'],
+    ['emoji15', 'O.o','o.O'],
+    ['emoji16', '>:O','>:o'],
+    ['emoji17', ':v'],
+    ['emoji18', ':poop:'],
+    ['emoji19', 'O:)'],
+    ['emoji20', ';-)', ';)'],
+    ['emoji21', '^_^'],
+    ['emoji22', '-_-'],
+    ['emoji23', ':|]'],
+    ['emoji24', ':putnam:'],
+    ['emoji25', '(^^^)'],
+    ['emoji20', '<(")']
   ],
 
   fy: function (text) {
@@ -439,7 +426,7 @@ App.emoji['XMPP'] = {
         for (var j in map[i].slice(1)) {
           var token = map[i].slice(1)[j].replace(/([\*\|\(\)\[\]\\\$\{\}\.\+\?\^])/g, '\\$1');
           var rexp = new RegExp('('+token+')', 'g');
-          mapped = mapped.replace(rexp, '<img src="img/emoji/xmpp/'+original+'.png" alt="$1" />');
+          mapped = mapped.replace(rexp, '<img src="img/emoji/fb/'+original+'.png" alt="$1" />');
           if (mapped != text) {
             return mapped;
           }
@@ -451,7 +438,7 @@ App.emoji['XMPP'] = {
   
   render: function (img, emoji) {
     img
-      .attr('src', 'img/emoji/xmpp/' + emoji[0] + '.png')
+      .attr('src', 'img/emoji/fb/' + emoji[0] + '.png')
       .data('emoji', emoji[1]);
   }
   
