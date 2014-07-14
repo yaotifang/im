@@ -1,0 +1,15 @@
+{
+    "architecture": "all",
+    "description": "description of loqui",
+    "framework": "ubuntu-sdk-14.04-dev1",
+    "hooks": {
+        "loqui": {
+            "apparmor": "loqui.json",
+            "desktop": "loqui.desktop"
+        }
+    },
+    "maintainer": "LoquiIM Community",
+    "name": "com.ubuntu.loqui.im.loqui",
+    "title": "loqui",
+    "version": "0.1"
+}
