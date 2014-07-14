@@ -9,32 +9,39 @@
   }
   * {
     animation: none!important;
+    -webkit-animation: none!important;
     transition: none!important;
+    -webkit-transition: none!important;
   }
 }
 @font-face {
   font-family:'FiraSans';
   src: url('/style/fonts/FiraSans-Bold.ttf');
+  src: local('FiraSans'), url('/style/fonts/FiraSans-Bold.ttf') format('truetype');
   font-weight: 700;
 }
 @font-face {
   font-family:'FiraSans';
   src: url('/style/fonts/FiraSans-Medium.ttf');
+  src: local('FiraSans'), url('/style/fonts/FiraSans-Medium.ttf') format('truetype');
   font-weight: 500;
 }
 @font-face {
   font-family:'FiraSans';
   src: url('/style/fonts/FiraSans-Regular.ttf');
+  src: local('FiraSans'), url('/style/fonts/FiraSans-Regular.ttf') format('truetype');
   font-weight: 300;
 }
 @font-face {
   font-family:'FiraSans';
   src: url('/style/fonts/FiraSans-Light.ttf');
+  src: local('FiraSans'), url('/style/fonts/FiraSans-Light.ttf') format('truetype');
   font-weight: 100;
 }
 @font-face {
   font-family:'FiraSans';
   src: url('/style/fonts/FiraSans-LightItalic.ttf');
+  src: local('FiraSans'), url('/style/fonts/FiraSans-LightItalic.ttf') format('truetype');
   font-weight: 100;
   font-style: italic; 
 }
@@ -64,24 +71,32 @@ section.prev {
 [data-transition="horizontal"] {
   transform: translateX(100%);
   transition: all .3s;
+  -webkit-transition: all .3s;
+  -webkit-transform: translateX(100%);
 }
 [data-transition="vertical"] {
   transform: translateY(-100%);
   opacity: 0;
   transition: all .3s;
+  -webkit-transition: all .3s;
   z-index: 51!important;
+  -webkit-transform: translateY(-100%);
 }
 section.show[data-transition="horizontal"] {
   transform: translateX(0);
+  -webkit-transform: translateX(0);
 }
 section.prev.forth[data-transition="horizontal"] {
   transform: translateX(-100%);
+  -webkit-transform: translateX(-100%);
 }
 section.prev.back[data-transition="horizontal"] {
   transform: translateX(100%);
+  -webkit-transform: translateX(100%);
 }
 section.show[data-transition="vertical"] {
   transform: translateY(0);
+  -webkit-transform: translateY(0);
   opacity: 1;
 }
 section {
@@ -145,6 +160,7 @@ aside {
   background-color: white;
   transform: translateX(120%);
   transition: transform .3s;
+  -webkit-transition: transform .3s;
   z-index: 50!important;
 }
 aside.show {
@@ -182,6 +198,7 @@ nav[data-control=menu] {
 .scroll {
   overflow: auto;
   will-animate: scroll;
+  -webkit-box-sizing: border-box;
 }
 
 .buttongroup {
@@ -209,9 +226,11 @@ nav[data-control=menu] {
 }
 .chungo .shader.show {
   animation: fadeIn .5s;
+  -webkit-animation: fadeIn .5s;
 }
 .chungo .shader.out {
   animation: fadeOut .5s;
+  -webkit-animation: fadeOut .5s;
 }
 .chungo .notifier {
   display: none;
@@ -235,9 +254,11 @@ nav[data-control=menu] {
 }
 .chungo .notifier.show {
   animation: popUp .5s;
+  -webkit-animation: popUp .5s;
 }
 .chungo .notifier.out {
   animation: popDown .2s;
+  -webkit-animation: popDown .2s;
 }
 .chungo .notifier .icon {
   font-size: 4rem;
@@ -301,17 +322,21 @@ section.fast .hideable {
 @keyframes popUp {
   from {
     transform: translateY(-100%);
+    -webkit-transform: translateY(-100%);
   }
   to {
     transform: translateY(0);
+    -webkit-transform: translateY(0);
   }
 }
 @keyframes popDown {
   from {
     transform: translateY(0);
+    -webkit-transform: translateY(0);
   }
   to {
     transform: translateY(-100%);
+    -webkit-transform: translateY(-100%);
   }
 }
 
