@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Loqui IM Source: src/scripts/loqui/account.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.loqui.css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top navbar-inverse">
+<div class="container">
+	<div class="navbar-header">
+		<a class="navbar-brand" href="index.html">
+			
+				<img class="branding-logo" src="img/logo.png" alt="logo">
+			
+			Loqui IM
+		</a>
+	</div>
+	<div class="navbar-collapse">
+		<ul class="nav navbar-nav">
+			
+			<li class="dropdown">
+				<a href="namespaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Namespaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="App.html">App</a></li><li><a href="Geo.html">Geo</a></li><li><a href="Menu.html">Menu</a></li><li><a href="Menu.map.html">Menu.map</a></li><li><a href="Plus.html">Plus</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Chat.html">Chat</a></li><li><a href="ChatCore.html">ChatCore</a></li><li><a href="Connector_CoSeMe.html">Connector/CoSeMe</a></li><li><a href="external-System.MozActivity.html">external:System.MozActivity</a></li><li><a href="external-System.Notification.html">external:System.Notification</a></li><li><a href="external-System.Promise.html">external:System.Promise</a></li><li><a href="external-System.WakeLock.html">external:System.WakeLock</a></li><li><a href="Geo.Pos.html">Geo.Pos</a></li><li><a href="Number.html">Number</a></li><li><a href="Object.html">Object</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="interfaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Interfaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Connector.html">Connector</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="global.html#Activity">Activity</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="externals.list.html" class="dropdown-toggle" data-toggle="dropdown">Externals<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="external-System.html">System</a></li>
+				</ul>
+			</li>
+			
+		</ul>
+	</div>
+</div>
+</div>
+
+
+<div class="container">
+<div class="row">
+
+	
+	<div class="col-md-12">
+	
+		<div id="main">
+			
+
+		<h1 class="page-title">Source: src/scripts/loqui/account.js</h1>
+    
+<section>
+	<article>
+		<pre
+			class="sunlight-highlight-javascript linenums">/* global App, Providers, Store, Tools, Messenger, Activity, Menu, Avatar, Message, Chat, Lungo, Make */
+
+/**
+* @file Holds {@link Account}
+* @author [Adán Sánchez de Pedro Crespo]{@link https://github.com/aesedepece}
+* @author [Jovan Gerodetti]{@link https://github.com/TitanNano}
+* @author [Christof Meerwald]{@link https://github.com/cmeerw}
+* @author [Giovanny Andres Gongora Granada]{@link https://github.com/Gioyik}
+* @author [Sukant Garg]{@link https://github.com/gargsms}
+* @license AGPLv3
+*/
+
+'use strict';
+
+var Account = function (core) {
+
+  // Holds only account data and no functions
+  this.core = core;
+  this.core.sendQ = this.core.sendQ || [];
+  this.connector = new App.connectors[Providers.data[this.core.provider].connector.type](this);
+  this.OTR = {};
+  this.contacts = {};
+  this._unread = new Blaze.Var(0);
+  this._chats = new Blaze.Var([]);
+  this._enabled = new Blaze.Var(false);
+  this._pendingReconnect = null;
+  this._reconnectBackoff = 1;
+  this._initialConnect = true;
+  this._scheduleReconnect = function () {
+    if (App.settings.reconnect &amp;&amp; ! this._initialConnect &amp;&amp; this.enabled) {
+      // schedule reconnect after a short (exponentially increasing( timeout
+      this._reconnectBackoff = Math.min(this._reconnectBackoff * 2, 300);
+      this._pendingReconnect = setTimeout(function () {
+        if (this._pendingReconnect &amp;&amp; App.online &amp;&amp; this.enabled) {
+          this._pendingReconnect = null;
+          this.connect();
+        }
+      }.bind(this), 1000 * this._reconnectBackoff);
+    }
+  };
+
+  this.__defineGetter__('enabled', function () {
+    return this._enabled.get();
+  });
+  this.__defineSetter__('enabled', function (val) {
+    this._enabled.set(val);
+    if (val != 'loading') {
+      this.core.enabled = val;
+      if (!val) {
+        this.connector.disconnect();
+      } else {
+        this._initialConnect = true;
+        this.connect();
+      }
+      this.save();
+    }
+  });
+
+  this.__defineGetter__('chats', function () {
+    return this._chats.get();
+  });
+  this.__defineSetter__('chats', function (val) {
+    this._chats.set(val);
+  });
+
+  this.__defineGetter__('unread', function () {
+    var val = this.chats.reduce(function (prev, cur) {return prev + cur.core.unread;}, 0);
+    this._unread.set(val);
+    return this._unread.get();
+  });
+
+  if ('OTR' in core) {
+    $.extend(this.OTR, core.OTR);
+    if (core.OTR.key) { // inflate the packed key
+      this.OTR.key = DSA.parsePrivate(core.OTR.key);
+    }
+  } else {
+    $.extend(this.OTR, App.defaults.Account.core.OTR);
+  }
+
+  // Test account
+  this.test = function () {
+    this.connector.connect({
+      connecting: function () {
+        Lungo.Notification.show('globe', _('Connecting'));
+      },
+      authenticating: function () {
+        Lungo.Notification.show('key', _('SMSsending'));
+      },
+      connected: function () {
+        Lungo.Notification.show('download', _('Synchronizing'));
+        var cb = function () {
+          // Don't add an account if already set up
+          if (Accounts.find(this.core.fullJid) &lt; 0) {
+            Tools.log('ADDING ACCOUNT', this);
+            App.accounts.push(this);
+            Lungo.Notification.hide();
+            this.show();
+            $('section.setup#' + this.core.provider + ' input').val('');
+            $('section#success span#imported').text(_('Imported', {number: (this.core.roster &amp;&amp; this.core.roster.length) ? this.core.roster.length : 0}));
+            this.connector.avatar(function (avatar) {
+              avatar.url.then(function (src) {
+                $('section#success img#avatar').attr('src', src);
+              });
+            });
+            Lungo.Router.section('success');
+            this.connector.disconnect();
+          } else {
+            //Lungo.Notification.error(_('DupliAccount'), _('DupliAccountNotice'), 'warning-sign', 5);
+          }
+          this.save();
+        }.bind(this);
+        this.connector.start();
+        this.sync(cb);
+      }.bind(this),
+      authfail: function () {
+        Lungo.Notification.error(_('NoAuth'), _('NoAuthNotice'), 'signal', 5);
+      }
+    });
+  };
+
+  // Connect
+  this.connect = function () {
+    if (this._pendingReconnect) {
+      clearTimeout(this._pendingReconnect);
+      this._pendingReconnect = null;
+    }
+    if (this.connector.isConnected()) {
+      this.connector.start();
+      this.sendQFlush();
+    } else {
+      if (navigator.onLine){
+        this.connector.connect({
+          connecting: function () {
+            this.enabled = 'loading';
+          }.bind(this),
+          connected: function () {
+            this.enabled = true;
+            this._initialConnect = false;
+            this._reconnectBackoff = 1;
+            var cb = function (rcb) {
+              App.audio('login');
+              this.connector.start();
+              if (this === Accounts.current) {
+                this.accountRender();
+                this.avatarsRender();
+              }
+              this.connector.presence.set(document.hidden ? 'away' : 'a');
+              this.sendQFlush();
+              if (rcb) {
+                rcb();
+              }
+            }.bind(this);
+            this.sync(cb);
+          }.bind(this),
+          authenticating: function () {
+            this.enabled = 'loading';
+          }.bind(this),
+          authfail: function () {
+            this._initialConnect = false;
+            Lungo.Notification.error(_('NoAuth'), _('NoAuthNotice'), 'signal', 5);
+          }.bind(this),
+          connfail: function () {
+            if (this.enabled == 'loading') {
+              this._scheduleReconnect();
+            }
+          }.bind(this),
+          disconnected: function () {
+            App.audio('logout');
+            this.presenceRender();
+            this._scheduleReconnect();
+          }.bind(this)
+        });
+      }
+    }
+  };
+
+  // Download roster and register callbacks for roster updates handling
+  this.sync = function (callback) {
+    this.connector.sync(callback);
+  };
+
+  // Bring account to foreground
+  this.show = function () {
+    Accounts.current = Accounts.find(this.core.fullJid);
+  };
+
+  // Render everything for this account
+  this.allRender = function () {
+    this.accountRender();
+    this.chatsRender();
+    this.avatarsRender();
+    this.presenceRender();
+  };
+
+  // Changes some styles based on presence and connection status
+  this.accountRender = function (front) {
+    $('section#main header').css('border-color', this.connector.provider.color);
+    $('aside#accounts .cover').css('background-color', this.connector.provider.color);
+    $('aside#accounts .cover .avatar img').removeAttr('src');
+    $('section#main footer .avatar img').removeAttr('src');
+    $('section#me .avatar img').removeAttr('src');
+    $('.floater').css('background-color', this.connector.provider.color);
+    var vCard = $(this.connector.vcard);
+    var address = ( vCard.length &amp;&amp; vCard.find('FN').length ) ? vCard.find('FN').text() : this.core.user;
+    var features = Providers.data[this.core.provider].features;
+    var meSection = $('section#me');
+    var mainSection = $('section#main');
+    var attachmentSection = $('section#attachment');
+    attachmentSection[0].dataset.features = meSection[0].dataset.features = mainSection[0].dataset.features = features.join(' ');
+    meSection.find('#nick input').val(this.connector.presence.name);
+    meSection.find('#status input').val(this.connector.presence.status);
+    meSection.find('#card .name').text(address == this.core.user ? '' : address);
+    meSection.find('#card .user').text(this.core.user);
+    meSection.find('#card .provider').empty().append($('&lt;img/>').attr('src', 'img/providers/squares/' + this.core.provider + '.svg'));
+    if(this.core.background){
+      Store.recover(this.core.background, function (key, url, free) {
+        $('section#chat ul#messages').css('background-image', 'url('+url+')');
+        $('section.profile div#card').css('background-image', 'url('+url+')');
+
+        free();
+      });
+    }else{
+        $('section#chat ul#messages').css('background-image', '');
+        $('section.profile div#card').css('background-image', '');
+    }
+  }.bind(this);
+
+  this.singleRender = function (chat, up) {
+    var ul = $('section#main article#chats ul[data-jid="' + this.core.fullJid + '"]');
+    var li = ul.children('li[data-jid="' + chat.core.jid + '"]');
+    if (li.length) {
+      if (up) {
+        li.detach();
+        ul.prepend(li);
+      }
+      li.children('.lastMessage').html(chat.core.last.text ? App.emoji[Providers.data[this.core.provider].emoji].fy(chat.core.last.text) : (chat.core.last.media ? _('SentYou', {type: _('MediaType_' + chat.core.last.media.type)}) : ''));
+      li.children('.lastStamp date').html(chat.core.last.stamp ? Tools.convenientDate(chat.core.last.stamp).join('&lt;br />') : '');
+      li[0].dataset.unread = chat.core.unread;
+      li[0].dataset.hidden = chat.core.settings.hidden[0] ? 1 : 0;
+      li[0].dataset.lastAck = chat.core.last.ack;
+    } else {
+      this.allRender();
+      this.presenceRender(chat.core.jid);
+    }
+  }.bind(this);
+
+  // List all chats for this account
+  this.chatsRender = function (f, click, hold) {
+    var account = this;
+    var oldUl = $('section#main article#chats ul[data-jid="' + this.core.fullJid + '"]');
+    var ul = oldUl.clone().empty();
+    var media = _('AttachedFile');
+    ul[0].dataset.jid = account.core.fullJid;
+    if (!f) {
+      ul.attr('style', oldUl.attr('style'));
+    }
+    if (this.core.chats &amp;&amp; this.core.chats.length) {
+      var liClickDefault= function (){
+          click(this);
+      };
+      var liClickFallback= function () {
+        account.chatGet(this.dataset.jid).show();
+      };
+      var liHoldDefault= function (){
+          hold(this);
+      };
+      var liHoldFallback= function () {
+        window.navigator.vibrate([100]);
+        if (this.dataset.jid.match(/\-/)) {
+          Messenger.mucProfile(this.dataset.jid);
+        } else {
+          Messenger.contactProfile(this.dataset.jid);
+        }
+      };
+      for (var i in this.core.chats) {
+        var chat = this.core.chats[i];
+        var name = chat.last &amp;&amp; !chat.muc ? chat.last.pushName : null || chat.title;
+        var title = App.emoji[Providers.data[this.core.provider].emoji].fy(name);
+        var lastMsg = chat.last ? (chat.last.text ? App.emoji[Providers.data[this.core.provider].emoji].fy(chat.last.text) : (chat.last.media ? _('SentYou', {type: _('MediaType_' + chat.last.media.type)}) : '')) : '';
+        var lastStamp = chat.last.stamp ? Tools.convenientDate(chat.last.stamp).join('&lt;br />') : '';
+        var li = $('&lt;li/>');
+        li[0].dataset.jid = chat.jid;
+        li[0].dataset.unread = chat.unread;
+        li.append($('&lt;span/>').addClass('avatar').append('&lt;img/>'));
+        li.append($('&lt;span/>').addClass('name').html(title));
+        li.append($('&lt;span/>').addClass('lastMessage').html(lastMsg));
+        li.append($('&lt;span/>').addClass('lastStamp').append($('&lt;date/>').attr('datetime', chat.last.stamp).html(lastStamp)));
+        li.append($('&lt;span/>').addClass('lastAck'));
+        li.append($('&lt;span/>').addClass('show').addClass('backchange'));
+        li[0].dataset.unread = chat.unread;
+        li[0].dataset.hidden= chat.settings.hidden[0] ? 1 : 0;
+        li[0].dataset.lastAck = chat.last.ack;
+        if (!chat.muc &amp;&amp; account.supports('muc') &amp;&amp; chat.jid &amp;&amp; chat.jid.substring(1).match(/\-/)) {
+          account.chats[i].core.muc = true;
+          account.chats[i].save();
+        }
+        li[0].dataset.muc = chat.muc ? true : false;
+        li.bind('click', click ? liClickDefault : liClickFallback).bind('hold', hold ? liHoldDefault : liHoldFallback);
+        ul.prepend(li);
+      }
+    } else {
+      var span = $('&lt;span/>').addClass('noChats')
+      .append($('&lt;strong/>').text(_('NoChats')))
+      .append($('&lt;p/>').text(_('NoChatsExplanation')));
+      span.on('click', function () {
+        var account = Accounts.current;
+        Activity('chat', account, null, {
+          chats: false,
+          groups: account.supports('muc')
+          });
+      });
+      ul.prepend(span);
+    }
+    if (f) {
+      f.appendChild($('&lt;article/>').attr('id', 'chats').addClass('scroll').append(ul)[0]);
+    } else {
+      oldUl.replaceWith(ul);
+    }
+  }.bind(this);
+
+  // List all contacts for this account
+  this.contactsRender = function (f, click, selected) {
+    var account = this;
+    var article = $('&lt;article/>').attr('id', 'contacts');
+    var header = $('&lt;header/>').addClass('beige')
+      .append($('&lt;button/>').addClass('new').text(_('ContactAdd')).on('click', function (event) {
+        Menu.show('contactAdd');
+      }));
+    if (account.supports('localContacts')) {
+      header.append($('&lt;button/>').addClass('sync').text(_('ContactsSync')).on('click', function (event) {
+        account.connector.contacts.sync(function (rcb) {
+          account.save();
+          Lungo.Router.section('main');
+        });
+      }));
+    }
+    var ul = $('&lt;ul/>').addClass('list').addClass('scroll');
+    var frag = f;
+    account = this;
+    this.contacts = {};
+    this.core.roster.forEach(function (contact, i, roster) {
+      var name = contact.name || contact.jid;
+      var nameParts = name.toLowerCase().split(' ');
+      for(var _i = 0, _len = nameParts.length; _i &lt; _len; _i++) {
+        var part = nameParts[_i];
+        if(account.contacts.hasOwnProperty(part))
+          account.contacts[part] += ' ' + contact.jid;
+        else
+          account.contacts[part] = contact.jid;
+      }
+      var li = document.createElement('li');
+      li.dataset.jid = contact.jid;
+      if (selected &amp;&amp; selected.indexOf(contact.jid) > -1) {
+        li.classList.add('selected');
+      }
+      li.innerHTML =
+          '&lt;span class=\'name\'>' + name + '&lt;/span>'
+        + '&lt;span class=\'status\'>' + contact.jid + '&lt;/span>';
+      li.addEventListener('click', function (e) {
+        click(this);
+      });
+      ul[0].appendChild(li);
+    });
+    article.append(header).append(ul);
+    frag.appendChild(article[0]);
+  }.bind(this);
+
+  // List all group chats for this account
+  this.groupsRender = function (f, click) {
+    var account = this;
+    var article = $('&lt;article/>').attr('id', 'groups');
+    var header = $('&lt;header/>').addClass('beige');
+    if (account.supports('mucCreate')) {
+      header.append($('&lt;button/>').addClass('new').text(_('GroupNew'))
+      .on('click', function (event) {
+        Menu.show('mucCreateForm', account);
+      }));
+    }
+    if (account.supports('mucJoin')) {
+      header.append($('&lt;button/>').addClass('join').text(_('GroupJoin'))
+      .on('click', function (event) {
+        Menu.show('mucSearchForm', account);
+      }));
+    }
+    var ul = $('&lt;ul/>').addClass('list').addClass('scroll');
+    var frag = f;
+    account = this;
+    this.core.chats.forEach(function (chat, i, chats) {
+      if (chat.muc) {
+        var title = chat.title;
+        var li = document.createElement('li');
+        li.dataset.jid = chat.jid;
+        li.innerHTML =
+            '&lt;span class=\'name\'>'
+          +  App.emoji[Providers.data[account.core.provider].emoji].fy(title)
+          + '&lt;/span>'
+          + '&lt;span class=\'status\'>'
+          + (chat.participants
+             ? _('NumParticipants', {number: chat.participants.length})
+             : ' ')
+          + '&lt;/span>';
+        li.addEventListener('click', function (e) {
+          click(this);
+        });
+        ul[0].appendChild(li);
+      }
+    });
+    article.append(header).append(ul);
+    frag.appendChild(article[0]);
+  }.bind(this);
+
+  // Render presence for every contact
+  this.presenceRender = function (jid) {
+    var contactPresenceRender = function (jid) {
+      var section = $('section#chat');
+      var header = section.children('header');
+      var contact = Lungo.Core.findByProperty(this.core.roster, 'jid', jid);
+      if (contact) {
+        if (this.supports('show')) {
+          var li = $('section#main article ul li[data-jid="'+contact.jid+'"]');
+          if (li.length > 0) {
+            li[0].dataset.show = contact.presence.show || 'na';
+          }
+        }
+        if (section[0].dataset.jid == contact.jid) {
+          section[0].dataset.show = (this.supports('show') &amp;&amp; contact.presence.show) || 'na';
+
+          var show =_('show' + (contact.presence.show || 'na'));
+          var time = (contact.presence.show != 'a') &amp;&amp; contact.presence.last &amp;&amp; Tools.convenientDate(Tools.localize(Tools.stamp(contact.presence.last)));
+          var prefix = time
+            ? _('LastTime', {time: _('DateTimeFormat', {date: time[0], time: time[1]})})
+            : show;
+
+          var status = ((contact.presence.status || time) ? (prefix + ' - ') : '') +
+            (contact.presence.status
+              ? App.emoji[Providers.data[this.core.provider].emoji].fy(contact.presence.status)
+             : show);
+          header.find('.status').html(status);
+        }
+      } else {
+        header.find('.status').html(App.emoji[Providers.data[this.core.provider].emoji].fy(' '));
+        section[0].dataset.show = 'na';
+      }
+    }.bind(this);
+    if (jid) {
+      contactPresenceRender(jid);
+    } else {
+      var ul = $('section#main article#chats ul[data-jid="' + this.core.fullJid + '"]');
+      if (ul.length > 0) {
+        ul[0].dataset.enabled = this.enabled;
+        Object.keys(this.core.chats).forEach(function(key){
+          var val = this[key];
+
+          if(!val.muc){
+            contactPresenceRender(val.jid, undefined);
+          }
+        }.bind(this.core.chats));
+      }
+    }
+  }.bind(this);
+
+  // Render all the avatars
+  this.avatarsRender = function () {
+    var account = this;
+    var avatars = App.avatars;
+    var contactAvatarRender = function (i, el) {
+      var closest = $(el).closest('[data-jid]');
+      var jid = closest.length ? closest[0].dataset.jid : account.core.fullJid;
+      var me = jid == account.core.fullJid;
+
+      if (avatars[jid]) {
+        (new Avatar(avatars[jid])).url.then(function (val) {
+          $(el).attr('src', val);
+          if (me) {
+            $('section#main footer .avatar img').attr('src', val);
+            $('section#me .avatar img').attr('src', val);
+          }
+        });
+      } else if (account.connector.isConnected() &amp;&amp; account.supports('easyAvatars')) {
+        console.log('REQUESTING AVATAR FOR', jid);
+        account.connector.avatar(function (a) {
+          a.url.then(function (val) {
+            console.log(a.data);
+            $(el).attr('src', val);
+            if (me) {
+              $('section#main footer .avatar img').attr('src', val);
+              $('section#me .avatar img').attr('src', val);
+            }
+            avatars[jid] = a.data;
+            App.avatars = avatars;
+          });
+        }, jid);
+      }
+    };
+
+    $('aside#accounts article#accounts div[data-jid="' + this.core.fullJid + '"] span.avatar img:not([src])').each(contactAvatarRender);
+    $('section#main article#chats ul[data-jid="' + this.core.fullJid + '"] span.avatar img:not([src])').each(contactAvatarRender);
+    $('section#chat[data-account="' + this.core.fullJid + '"] article#main span.avatar img:not([src])').each(contactAvatarRender);
+  }.bind(this);
+
+  // Manage search through contacts
+  this.searchRender = function (f, click) {
+    if(f) {
+      $('section#activity nav.on-right button').removeClass('hidden');
+    } else {
+      $('section#activity nav.on-right button').addClass('hidden');
+      return;
+    }
+    if(!this.contacts)
+      return false;
+    var account = this;
+    var article = $('&lt;article/>').attr('id', 'search');
+    var header = $('&lt;header/>').addClass('beige');
+    var input = $('&lt;input/>').attr('id', 'searchInput')
+                .on('input', function (event) {
+                  var ele = event.target;
+                  if(ele.value)
+                    ele.nextSibling.className = '';
+                  else
+                    ele.nextSibling.className = 'hidden';
+                  account.search(article, this.value, click);
+                });
+    var reset = $('&lt;span/>').attr('id', 'reset')
+                .addClass('hidden')
+                .on('click', function (event) {
+                  this.previousSibling.value = '';
+                  this.className = 'hidden';
+                  account.search(article, '', click);
+                });
+    header.append(input).append(reset);
+    article.append(header).append($('&lt;h1/>').text('Type some characters to start searching'));
+    var frag = f;
+    frag.appendChild(article[0]);
+  };
+
+  // Search through contacts for a loose match and append a list
+  this.search = function (article, text, click) {
+    var account = this;
+    if(article[0].lastChild.nodeName === 'UL' || article[0].lastChild.nodeName === 'H1')
+      article[0].lastChild.remove();
+    if(!text) {
+      article.append($('&lt;h1/>').text('Type some characters to start searching'));
+      return false;
+    }
+    text = text.toLowerCase().split(' ');
+    var roster = account.core.roster;
+    // forEach is slow, and evil
+    // for(var _i = 0, _len = account.names.length; _i &lt; _len; _i++) {
+    //   if(account.names[_i].startsWith(text)) {
+    //     str[account.names[_i]] = 1; // Just a placeholder
+    //   }
+    // }
+    // var matches = [];
+    // for(var match in str) {
+    //   if(str.hasOwnProperty(match))
+    //     matches.push(match);
+    // }
+
+    // Search now for the `text` match
+    var matches = roster.filter( function ( contactMap ) {
+      return ( text.filter( function ( token ) {
+        var regex = new RegExp( token, 'gi' );
+        return contactMap.jid.match( regex ) || contactMap.name.match( regex );
+      } ) || [ ] ).length;
+    } );
+
+    var ul = $('&lt;ul/>').addClass('list').addClass('scroll');
+    var _i, _len;
+    for(_i = 0, _len = matches.length; _i &lt; _len; _i++) {
+      var name = matches[_i].name;
+      var jID = matches[_i].jid;
+      var li = document.createElement('li');
+      li.dataset.jid = jID;
+      li.innerHTML = '&lt;span class=\'name\'>' + name + '&lt;/span>'
+                     + '&lt;span class=\'status\'>' + jID + '&lt;/span>';
+      li.addEventListener('click', click.bind(li, li));
+      ul[0].appendChild(li);
+    }
+    article.append(ul[0]);
+  };
+
+  this.OTRMenu = function () {
+    var account = this;
+    function OTRSetup() {
+      Lungo.Router.article('otrMenu', 'otrSetup');
+      $('button#setupOtr').on('click', function(e) {
+        Lungo.Notification.success(_('OTRKeygen'), _('OTRWait'), 'key', 5);
+        Lungo.Router.section('back');
+        Lungo.Router.section('main');
+        DSA.createInWebWorker({
+          path: 'scripts/arlolra/dsa-webworker.js'
+        }, function (key) {
+          account.OTR.enabled = true;
+          account.OTR.key = key;
+          account.core.OTR = $.extend({}, account.OTR, {
+            key: account.OTR.key.packPrivate()
+          });
+          account.save();
+          Lungo.Notification.success(_('OTRKeyReady'), _('OTRKeyReadyDesc'), 'ok', 5);
+          OTRSettings();
+        });
+      });
+    }
+    function OTRSettings() {
+      Lungo.Router.article('otrMenu', 'otrSettings');
+      var fingerprint = account.OTR.key.fingerprint();
+      $('span#otrKeyFingerprint').html($('&lt;small/>').html(Tools.explode(fingerprint, 8)));
+      $('span#otrKeyFingerprint').append($('&lt;img/>').attr('src', Tools.fingerprintToImage(fingerprint)));
+      if (account.core.OTR.logging) {
+        $('input#logOtrChats').attr('checked', account.OTR.logging);
+      }
+      $('input#logOtrChats').on('change', function () {
+        account.core.OTR.logging = this.checked;
+        account.save();
+      });
+    }
+    if (!account.OTR.enabled) {
+      OTRSetup();
+    } else {
+      OTRSettings();
+    }
+    Lungo.Router.section('otrMenu');
+  };
+
+  // Push message to sendQ
+  this.toSendQ = function (storageIndex) {
+    Tools.log('[sendQ] Queued', storageIndex);
+    if (!this.core.sendQ) {
+      this.core.sendQ = [];
+    }
+    this.core.sendQ.push(storageIndex);
+    this.save();
+  };
+
+  // Send every message in SendQ
+  this.sendQFlush = function () {
+    var account = this;
+    if (this.core.sendQ.length) {
+      var sendQ = this.core.sendQ;
+      var block = sendQ[0][0];
+      Tools.log('[sendQ] Flushing', sendQ, sendQ[0]);
+      Store.recover(block, function (key, data, free) {
+        var content = data[sendQ[0][1]];
+        var msg = Make(Message)(account, {
+          from: content.from,
+          to: content.to,
+          text: content.text,
+          stamp: content.stamp,
+		  original : sendQ[0]
+        }, {
+          render: false
+        });
+
+        free();
+
+        msg.send(true, true);
+        sendQ.splice(0, 1);
+        account.sendQFlush();
+      });
+    } else {
+      this.save();
+    }
+  };
+
+  // Find chat in chat array
+  this.chatFind = function (jid) {
+    var index = -1;
+    for (var i in this.chats) {
+      if (this.chats[i].core &amp;&amp; this.chats[i].core.jid == jid) {
+        index = i;
+        break;
+      }
+    }
+    return index;
+  };
+
+  // Get a chat for a jid (create if none)
+  this.chatGet = function (jid, title) {
+    var ci = this.chatFind(jid);
+    var chat= null;
+    if (ci >= 0) {
+      chat = this.chats[ci];
+    } else {
+      chat = Make(Chat)({
+        jid: jid,
+        title: title || jid,
+        chunks: []
+      }, this);
+    }
+    return chat;
+  };
+
+  this.markMessage = async.queue(function(task, callback){
+    var from= task.from;
+    var msgId= task.msgId;
+    var chat = this.chatGet(from);
+    var account = this;
+
+    chat.findMessage(msgId, null, true).then(function(values){
+      var msg = values.result.message;
+      var free = values.free;
+      var key = values.key;
+
+      if (msg.ack == 'sent') {
+        console.log('MARKING AS DELIVERED', from, msgId, chat, account, values);
+        msg.ack = 'delivered';
+      } else if (msg.ack == 'delivered') {
+        console.log('MARKING AS VIEWED', from, msgId, chat, account, values);
+        msg.ack = 'viewed';
+      } else if (msg.ack != 'viewed') {
+        console.log('MARKING AS SENT', from, msgId, chat, account, values);
+        msg.ack = 'sent';
+      }
+      Store.update(key, values.result.chunkIndex, values.result.chunk, function(){
+        free();
+        callback();
+      });
+
+      if (chat.core.last.id == msg.id) {
+        chat.core.last = msg;
+      }
+
+      msg = Make(Message)(account, msg);
+      msg.reRender(values.result.chunkIndex);
+      account.singleRender(chat);
+
+    }, function(e){
+        Tools.log('UNABLE TO FIND MESSAGE! CARRY ON', from, msgId, e);
+        setTimeout(function(){
+            task.retries = task.retries ? task.retries-1 : 2;
+
+            if (task.retries > 0) {
+              Tools.log('GONING TO RETRRY!', task.retries, 'RETRIES ARE LEFT');
+              account.markMessage.push(task);
+            }
+        }, 200);
+        callback();
+    });
+  }.bind(this));
+
+  this.markMessage.drain= function(){
+    var account = this;
+
+    account.save();
+  }.bind(this);
+
+  // Check for feature support
+  this.supports = function (feature) {
+    return this.connector.provider.features.indexOf(feature) >= 0;
+  };
+
+  // Save to store
+  this.save = function () {
+    var index = Accounts.find(this.core.fullJid || this.core.user);
+      this.core.chats.sort(function(a, b){
+        a = new Date(a.last ? a.last.stamp : 0);
+        b = new Date(b.last ? b.last.stamp : 0);
+        return a.getTime() > b.getTime();
+      });
+
+      if (index > -1) {
+		  var accounts = App.accounts;
+		  accounts[index] = this;
+		  App.accounts = accounts;
+	  }
+  };
+
+};
+
+var Accounts = {
+
+  _current: Blaze.Var(-1),
+
+  get current () {
+    return App.accounts[this._current.get()];
+  },
+  set current (i) {
+    if (this._current.get() != i) {
+      this._current.set(i);
+      setTimeout(function () {
+        $('section#main header select')[0].selectedIndex = i;
+        var ul = $('section#main ul[data-jid="' + (this.core.fullJid || this.core.user) + '"]');
+        ul.show().siblings('ul').hide();
+        this.allRender();
+      }.bind(this.current));
+    }
+  },
+
+  // Find the index of an account
+  find: function (jid) {
+    var index = -1;
+    for (var i in App.accounts) {
+      var account = App.accounts[i].core;
+      if (account.fullJid ? (account.fullJid == jid) : (account.user == jid)) {
+        index = i;
+        break;
+      }
+    }
+    return index;
+  }
+
+};
+</pre>
+	</article>
+</section>
+
+
+
+
+
+		</div>
+	</div>
+
+	<div class="clearfix"></div>
+
+	
+
+</div>
+</div>
+
+
+<footer>
+
+
+	<span class="copyright">
+	DocStrap Copyright © 2012-2014 The contributors to the JSDoc3 and DocStrap projects.
+	</span>
+	<br />
+
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a
+	href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+</footer>
+
+<!--<script src="scripts/sunlight.js"></script>-->
+<script src="scripts/docstrap.lib.js"></script>
+<script src="scripts/bootstrap-dropdown.js"></script>
+<script src="scripts/toc.js"></script>
+
+<script>
+$( function () {
+	$( "[id*='$']" ).each( function () {
+		var $this = $( this );
+
+		$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+	} );
+
+	$( "#toc" ).toc( {
+		anchorName  : function ( i, heading, prefix ) {
+			var id = $( heading ).attr( "id" );
+			return id && id.replace(/\~/g, '-inner-').replace(/\./g, '-static-') || ( prefix + i );
+		},
+		selectors   : "h1,h2,h3,h4",
+		showAndHide : false,
+		scrollTo    : "100px"
+	} );
+
+	$( "#toc>ul" ).addClass( "nav nav-pills nav-stacked" );
+	$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+	$( '.dropdown-toggle' ).dropdown();
+	//			$( ".tutorial-section pre, .readme-section pre" ).addClass( "sunlight-highlight-javascript" ).addClass( "linenums" );
+
+	$( ".tutorial-section pre, .readme-section pre" ).each( function () {
+		var $this = $( this );
+
+		var example = $this.find( "code" );
+		exampleText = example.html();
+		var lang = /{@lang (.*?)}/.exec( exampleText );
+		if ( lang && lang[1] ) {
+			exampleText = exampleText.replace( lang[0], "" );
+			example.html( exampleText );
+			lang = lang[1];
+		} else {
+			lang = "javascript";
+		}
+
+		if ( lang ) {
+
+			$this
+			.addClass( "sunlight-highlight-" + lang )
+			.addClass( "linenums" )
+			.html( example.html() );
+
+		}
+	} );
+
+	Sunlight.highlightAll( {
+		lineNumbers : true,
+		showMenu : true,
+		enableDoclinks : true
+	} );
+} );
+</script>
+
+
+
+<!--Navigation and Symbol Display-->
+
+
+<!--Google Analytics-->
+
+
+</body>
+</html>

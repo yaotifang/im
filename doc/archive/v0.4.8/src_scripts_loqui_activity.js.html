@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Loqui IM Source: src/scripts/loqui/activity.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.loqui.css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top navbar-inverse">
+<div class="container">
+	<div class="navbar-header">
+		<a class="navbar-brand" href="index.html">
+			
+				<img class="branding-logo" src="img/logo.png" alt="logo">
+			
+			Loqui IM
+		</a>
+	</div>
+	<div class="navbar-collapse">
+		<ul class="nav navbar-nav">
+			
+			<li class="dropdown">
+				<a href="namespaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Namespaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="App.html">App</a></li><li><a href="Geo.html">Geo</a></li><li><a href="Menu.html">Menu</a></li><li><a href="Menu.map.html">Menu.map</a></li><li><a href="Plus.html">Plus</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Chat.html">Chat</a></li><li><a href="ChatCore.html">ChatCore</a></li><li><a href="Connector_CoSeMe.html">Connector/CoSeMe</a></li><li><a href="external-System.MozActivity.html">external:System.MozActivity</a></li><li><a href="external-System.Notification.html">external:System.Notification</a></li><li><a href="external-System.Promise.html">external:System.Promise</a></li><li><a href="external-System.WakeLock.html">external:System.WakeLock</a></li><li><a href="Geo.Pos.html">Geo.Pos</a></li><li><a href="Number.html">Number</a></li><li><a href="Object.html">Object</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="interfaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Interfaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Connector.html">Connector</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="global.html#Activity">Activity</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="externals.list.html" class="dropdown-toggle" data-toggle="dropdown">Externals<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="external-System.html">System</a></li>
+				</ul>
+			</li>
+			
+		</ul>
+	</div>
+</div>
+</div>
+
+
+<div class="container">
+<div class="row">
+
+	
+	<div class="col-md-12">
+	
+		<div id="main">
+			
+
+		<h1 class="page-title">Source: src/scripts/loqui/activity.js</h1>
+    
+<section>
+	<article>
+		<pre
+			class="sunlight-highlight-javascript linenums">/* global App, Tools, Lungo */
+
+/**
+* @file Holds {@link Activity}
+* @author [Adán Sánchez de Pedro Crespo]{@link https://github.com/aesedepece}
+* @author [Jovan Gerodetti]{@link https://github.com/TitanNano}
+* @author [Giovanny Andres Gongora Granada]{@link https://github.com/Gioyik}
+* @author [Sukant Garg]{@link https://github.com/gargsms}
+* @license AGPLv3
+*/
+
+'use strict';
+
+/**
+ * @function
+ * @param {string} action
+ * @param {Account} account
+ * @param {string} content
+ * @param {Object} options 
+ */
+var Activity = function (action, account, content, options) {
+
+  options = options || {};
+
+  $.extend(options, {
+    chats: (options &amp;&amp; 'chats' in options) ? options.chats : true,
+    groups: (options &amp;&amp; 'groups' in options) ? options.groups : true
+  });
+
+  var actions = {
+    chat: function (f, account, content) {
+      var click = function (t) {
+        var chat = account.chatGet(t.dataset.jid, $(t).children('.name').text());
+        Lungo.Router.section('back');
+        account.show();
+        chat.show();
+        if (content) {
+          $('#main #footbox #text').text(content).trigger('keydown');
+        }
+      };
+      if (options.chats) {
+        account.chatsRender(f, click);
+      }
+      account.contactsRender(f, click);
+      if (options.groups) {
+        account.groupsRender(f, click);
+      }
+      account.searchRender(f, click);
+    },
+    file: function (f, account, content) {
+      var click = function (t) {
+        var jid = t.dataset.jid;
+        var title = $(t).children('.name').text();
+        var chat = account.chatGet(jid, title);
+        for (var i in content.blobs) {
+          var r = confirm(_('ConfirmMediaSend', {file: content.filenames[i], chat: title}));
+          if (r) {
+            if ('fileSend' in account.connector &amp;&amp; account.supports(content.type.split('/')[0] + 'Send')) {
+              account.connector.fileSend(jid, content.blobs[i]);
+              Lungo.Router.section('back');
+              chat.show();
+            } else {
+              Lungo.Notification.error(_('NoSupport'), _('WhatsAppIsBetter'), 'exclamation-sign');
+              Lungo.Router.section('back');
+            }
+          }
+        }
+      };
+      if (options.chats) {
+        account.chatsRender(f, click);
+      }
+      account.contactsRender(f, click);
+      if (options.groups) {
+        account.groupsRender(f, click);
+      }
+    },
+    invite: function (f, account, content, options) {
+      var click = function (t) {
+        t = $(t);
+        t.toggleClass('selected');
+        content(t[0].dataset.jid, t.find('.name').text());
+      };
+      account.contactsRender(f, click, options.selected);
+      account.searchRender(null);
+    }
+  };
+
+  var accountSelect = function (f, title) {
+    var article = document.createElement('article');
+    article.id = 'accounts';
+    var ul = document.createElement('ul');
+    ul.classList.add('accounts');
+    title = _('Accounts');
+    for (var [i, account] in Iterator(App.accounts)) {
+      let li = document.createElement('li');
+      let ai = i;
+      let icon = document.createElement('img');
+      icon.src = 'img/providers/squares/' + account.core.provider + '.svg';
+      icon.classList.add('provIcon');
+      let provider = document.createElement('span');
+      provider.textContent = account.connector.provider.longName;
+      provider.classList.add('provider');
+      let name = document.createElement('span');
+      let vCard = $(account.connector.vcard);
+      let address = ( vCard.length &amp;&amp; vCard.find('FN').length ) ? vCard.find('FN').text() : account.core.user;
+      name.textContent = address;
+      name.classList.add('jid');
+      li.appendChild(icon);
+      li.appendChild(provider);
+      li.appendChild(name);
+      li.addEventListener('click', function (e) {
+        Activity(action, App.accounts[ai], content, options);
+      });
+      ul.appendChild(li);
+      article.appendChild(ul);
+    }
+    f.appendChild(article);
+  };
+
+  var t = '';
+  var f = document.createDocumentFragment();
+  var section = $('section#activity');
+  var article = section.children('article').empty();
+  section.children('article').remove();
+
+  if (account) {
+    if (action in actions) {
+      actions[action](f, account, content, options);
+      section[0].appendChild(f);
+      section.find('h1').first().text(_('Action' + action));
+      section.addClass('extended');
+      if (options.groups) {
+        section.find('[data-view-article="groups"]').show();
+      } else {
+        section.find('[data-view-article="groups"]').hide();
+      }
+      if (options.chats) {
+        section.find('[data-view-article="chats"]').show();
+        section.find('[data-view-article="chats"]')[0].click();
+      } else {
+        section.find('[data-view-article="chats"]').hide();
+        section.find('[data-view-article="contacts"]')[0].click();
+      }
+    } else {
+      Tools.log('No such action!');
+    }
+  } else {
+    accountSelect(f, t);
+    section[0].appendChild(f);
+    section.find('h1').first().text(t);
+    section.removeClass('extended');
+    Lungo.Router.article('activity', 'accounts');
+  }
+
+  Lungo.Router.section('activity');
+
+};
+
+if ('mozSetMessageHandler' in navigator) {
+  document.addEventListener('appReady', function(){
+    navigator.mozSetMessageHandler('activity', function(a) {
+      if (a.source.name === 'share') {
+        if (a.source.data.type == 'url') {
+          Activity('chat', null, a.source.data.url);
+        } else {
+          Activity('file', null, a.source.data);
+        }
+      }
+    });
+  });
+}
+</pre>
+	</article>
+</section>
+
+
+
+
+
+		</div>
+	</div>
+
+	<div class="clearfix"></div>
+
+	
+
+</div>
+</div>
+
+
+<footer>
+
+
+	<span class="copyright">
+	DocStrap Copyright © 2012-2014 The contributors to the JSDoc3 and DocStrap projects.
+	</span>
+	<br />
+
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a
+	href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+</footer>
+
+<!--<script src="scripts/sunlight.js"></script>-->
+<script src="scripts/docstrap.lib.js"></script>
+<script src="scripts/bootstrap-dropdown.js"></script>
+<script src="scripts/toc.js"></script>
+
+<script>
+$( function () {
+	$( "[id*='$']" ).each( function () {
+		var $this = $( this );
+
+		$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+	} );
+
+	$( "#toc" ).toc( {
+		anchorName  : function ( i, heading, prefix ) {
+			var id = $( heading ).attr( "id" );
+			return id && id.replace(/\~/g, '-inner-').replace(/\./g, '-static-') || ( prefix + i );
+		},
+		selectors   : "h1,h2,h3,h4",
+		showAndHide : false,
+		scrollTo    : "100px"
+	} );
+
+	$( "#toc>ul" ).addClass( "nav nav-pills nav-stacked" );
+	$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+	$( '.dropdown-toggle' ).dropdown();
+	//			$( ".tutorial-section pre, .readme-section pre" ).addClass( "sunlight-highlight-javascript" ).addClass( "linenums" );
+
+	$( ".tutorial-section pre, .readme-section pre" ).each( function () {
+		var $this = $( this );
+
+		var example = $this.find( "code" );
+		exampleText = example.html();
+		var lang = /{@lang (.*?)}/.exec( exampleText );
+		if ( lang && lang[1] ) {
+			exampleText = exampleText.replace( lang[0], "" );
+			example.html( exampleText );
+			lang = lang[1];
+		} else {
+			lang = "javascript";
+		}
+
+		if ( lang ) {
+
+			$this
+			.addClass( "sunlight-highlight-" + lang )
+			.addClass( "linenums" )
+			.html( example.html() );
+
+		}
+	} );
+
+	Sunlight.highlightAll( {
+		lineNumbers : true,
+		showMenu : true,
+		enableDoclinks : true
+	} );
+} );
+</script>
+
+
+
+<!--Navigation and Symbol Display-->
+
+
+<!--Google Analytics-->
+
+
+</body>
+</html>

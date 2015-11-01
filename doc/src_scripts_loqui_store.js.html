@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Loqui IM Source: src/scripts/loqui/store.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.loqui.css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top navbar-inverse">
+<div class="container">
+	<div class="navbar-header">
+		<a class="navbar-brand" href="index.html">
+			
+				<img class="branding-logo" src="img/logo.png" alt="logo">
+			
+			Loqui IM
+		</a>
+	</div>
+	<div class="navbar-collapse">
+		<ul class="nav navbar-nav">
+			
+			<li class="dropdown">
+				<a href="namespaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Namespaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="App.html">App</a></li><li><a href="Geo.html">Geo</a></li><li><a href="Menu.html">Menu</a></li><li><a href="Menu.map.html">Menu.map</a></li><li><a href="Plus.html">Plus</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Chat.html">Chat</a></li><li><a href="ChatCore.html">ChatCore</a></li><li><a href="Connector_CoSeMe.html">Connector/CoSeMe</a></li><li><a href="external-System.MozActivity.html">external:System.MozActivity</a></li><li><a href="external-System.Notification.html">external:System.Notification</a></li><li><a href="external-System.Promise.html">external:System.Promise</a></li><li><a href="external-System.WakeLock.html">external:System.WakeLock</a></li><li><a href="Geo.Pos.html">Geo.Pos</a></li><li><a href="Number.html">Number</a></li><li><a href="Object.html">Object</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="interfaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Interfaces<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Connector.html">Connector</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="global.html#Activity">Activity</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="externals.list.html" class="dropdown-toggle" data-toggle="dropdown">Externals<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="external-System.html">System</a></li>
+				</ul>
+			</li>
+			
+		</ul>
+	</div>
+</div>
+</div>
+
+
+<div class="container">
+<div class="row">
+
+	
+	<div class="col-md-12">
+	
+		<div id="main">
+			
+
+		<h1 class="page-title">Source: src/scripts/loqui/store.js</h1>
+    
+<section>
+	<article>
+		<pre
+			class="sunlight-highlight-javascript linenums">/* global Tools, Lungo, App */
+
+/**
+* @file Holds {@link Store}
+* @author [Adán Sánchez de Pedro Crespo]{@link https://github.com/aesedepece}
+* @author [Jovan Gerodetti]{@link https://github.com/TitanNano}
+* @author [Giovanny Andres Gongora Granada]{@link https://github.com/Gioyik}
+* @license AGPLv3
+*/
+
+'use strict';
+
+var Store = {
+
+  size: 0,
+
+  cache: [],
+
+  locks : {},
+
+  waiting : [],
+
+  init: function (){
+    Store.recover(0, function (key, size, free) {
+      Store.size = size || 0;
+
+      free();
+    });
+  },
+
+  block: function (value) {
+    this.value = value;
+    this.save = function (callback) {
+      var index = this.index;
+      asyncStorage.setItem('b'+this.index, this.value, function(){
+        if (callback) {
+          callback(index);
+        }
+      });
+    };
+  },
+
+  save: function (value, callback) {
+    var block = new Store.block(JSON.stringify(value));
+    var key = Store.lock(0);
+    block.index = ++Store.size;
+    Store.cache[block.index] = block.value;
+    block.save(function (index) {
+      delete Store.cache[index];
+      if (callback) {
+      	callback(index);
+      }
+    });
+
+    Store.update(key, 0, Store.size);
+
+    Store.unlock(0, key);
+    return block.index;
+  },
+
+  recover: function (index, callback) {
+    var stack = stack || Tools.currentStack();
+
+    var promise = new Promise(function(ready){
+
+      if (!this.locks[index]) {
+        var key = this.lock(index, stack);
+
+        if (Store.cache[index]) {
+          ready([key, JSON.parse(Store.cache[index])]);
+
+        } else {
+            asyncStorage.getItem('b'+index, function (value){
+              ready([key, JSON.parse(value)]);
+            }.bind(this));
+        }
+
+      } else {
+        this.onUnlock(index, function(){
+          var stack = stack;
+          Store.recover(index, callback);
+        });
+      }
+
+    }.bind(this)).then(function(values){
+      new Promise(function(release){
+        values.push(release);
+
+        callback.apply(null, values);
+      }).then(function(){
+        Store.unlock(index, values[0]);
+      });
+    });
+
+  },
+
+  update: function (key, index, value, callback) {
+    if(this.locks[index] == key){
+      var block = new Store.block(JSON.stringify(value));
+      block.index = index;
+      Store.cache[block.index] = block.value;
+      block.save(function (index) {
+        delete Store.cache[index];
+        if (callback) {
+          callback(index);
+        }
+      });
+      return block.index;
+    } else {
+      console.error('unable to write block '+ index +'! Free the current lock!');
+    }
+  },
+
+  drop: function (key, callback) {
+    asyncStorage.removeItem(key, callback);
+  },
+
+  lock : function(index, stack) {
+    var key = {
+      hash : (Date.now() * Math.random() * Date.now()).toString(16),
+      createdAt : stack || Tools.currentStack(1)
+    };
+
+    if (!this.locks[index]) {
+      this.locks[index] = key;
+      return key;
+
+    } else {
+      console.error('Block ' + index + ' is already locked!');
+    }
+  },
+
+  unlock : function(index, key) {
+    if (this.locks[index] == key) {
+      delete this.locks[index];
+
+      var next = this.waiting.find(function(item){
+        return (item.index == index);
+      });
+
+      if (next) {
+        var i = this.waiting.indexOf(next);
+
+        this.waiting.splice(i, 1);
+        next.callback();
+      }
+    } else {
+      console.error('invalide key for current lock!', index);
+    }
+  },
+
+  onUnlock : function(index, callback) {
+    this.waiting.push({ index : index, callback : callback });
+  },
+
+  blockDrop: function (index, callback) {
+    this.drop('b' + index, callback);
+  },
+
+  put: function (key, value, callback) {
+  	asyncStorage.setItem(key, JSON.stringify(value), callback);
+  },
+
+  get: function (key, callback) {
+    asyncStorage.getItem(key, function (value) {
+      callback(JSON.parse(value));
+    });
+  },
+
+  SD: {
+
+    card: 'getDeviceStorage' in navigator ? navigator.getDeviceStorage('sdcard') : null,
+
+    save: function (path, content, onsuccess, onerror, quiet) {
+      var type = Tools.getFileType(path.split('.').pop());
+      if (this.card) {
+        if(!quiet) Tools.log('SAVING', path);
+        var file = content instanceof Blob ? content : new Blob(content, {type: type});
+        var req = this.card.addNamed(file, path);
+        req.onsuccess = function () {
+          if (onsuccess) {
+            onsuccess(this.result);
+          }
+        };
+        req.onerror = function () {
+          if (onerror) {
+            onerror(this.error);
+            if(!quiet) Lungo.Notification.error(_('Error'), _('NoSDAccess'), 'cloud-download', 5);
+          }
+        };
+      } else {
+        if(!quiet) Tools.log('DS IS NOT SUPPORTED');
+        Store.put('fakesdcard_' + path, {content: content, type: type}, onsuccess);
+      }
+    },
+
+    recover: function (path, onsuccess, onerror, quiet) {
+      if (this.card) {
+        var req = this.card.get(path);
+        req.onsuccess = function () {
+          onsuccess(this.result);
+        };
+        req.onerror = function () {
+          if (onerror) {
+            onerror(this.error);
+            if(!quiet) Lungo.Notification.error(_('Error'), _('NoSDAccess'), 'cloud-download', 5);
+          }
+        };
+      } else {
+        if(!quiet) Tools.log('DS IS NOT SUPPORTED');
+        Store.get('fakesdcard_' + path, function (value) {
+          if (value) {
+            onsuccess(new Blob(value.content, {type: value.type}));
+          } else {
+            if (onerror) {
+              onerror();
+            }
+          }
+        });
+      }
+    },
+
+    copy : function (from, to, onsuccess, onerror) {
+      if (this.card) {
+        var req = this.card.get(from);
+        req.onsuccess = function () {
+          Store.SD.save(to, this.result, onsuccess, onerror);
+        };
+        req.onerror = function () {
+          if (onerror) {
+            onerror(this.error);
+            Lungo.Notification.error(_('Error'), _('NoSDAccess'), 'cloud-download', 5);
+          }
+        };
+      } else {
+        Tools.log('DS IS NOT SUPPORTED');
+        Store.get('fakesdcard_' + from, function (value) {
+          if (value) {
+            Store.put('fakesdcard_' + to, value, onsuccess);
+          } else {
+            if (onerror) {
+              onerror();
+            }
+          }
+        });
+      }
+    },
+
+    dir : function(path, onsuccess, onerror){
+      if(this.card){
+        var list= [];
+        var req = this.card.enumerate(path);
+
+        req.onsuccess= function(){
+            if(this.result){
+                list.push(this.result);
+                this.continue();
+            }else{
+                onsuccess(list);
+            }
+        };
+
+        req.onerror= function(){
+          if(onerror){
+            onerror(this.error);
+            Lungo.Notification.error(_('Error'), _('NoSDAccess'), 'cloud-download', 5);
+          }
+        };
+
+      }
+    },
+
+    createFile : function(fileName, callback) {
+        if(this.card){
+            var card = this.card;
+
+            var request = card.get(fileName);
+
+            request.onerror = function(e){
+                if (request.error.name === 'NotFoundError') {
+                    request = card.addNamed(new Blob([''], {type: "text/plain"}), fileName);
+
+                    request.onsuccess = callback;
+                }
+
+                callback();
+            };
+
+            request.onsuccess = callback;
+        }
+    },
+
+    appendToFile: function(fileName, args, callback){
+        if(this.card){
+            var card = this.card;
+            var request = card.getEditable(fileName);
+
+            request.onsuccess = function(e){
+                var fileHandle = request.result.open('readwrite');
+
+                args.forEach(function(item){
+                    fileHandle.append(item.join(' ') + '\n');
+                });
+
+                fileHandle.flush();
+                fileHandle.abort();
+                callback();
+            };
+
+            request.onerror = function(e)　{
+                console.log('CAN\'T WRITE TO LOG FILE!!');
+                callback();
+            };
+        }
+    },
+
+    writeToLog : (function(){ 
+        var buffer = [];
+        var fileName = null;
+
+        var q = async.queue(function(args, callback) {
+            buffer.push(args.join(' '));
+
+            setTimeout(callback, 100);
+        });
+
+        q.drain = function(){
+            fileWriter.push([buffer]);
+        };
+
+        var fileWriter = async.queue(function(buffer, callback){
+            if (window.FileHandle) {
+                fileName = App.pathLogs + (new Date()).toISOString().split('T')[0] + '.log';
+
+                Store.SD.createFile(fileName, function(e){
+                    Store.SD.appendToFile(fileName, buffer, callback);
+                });
+            } else {
+                var lastDate = localStorage.getItem('logFileDate');
+                var currentDate = (new Date()).toISOString().split('T')[0];
+                var part = ((currentDate === lastDate) ? (parseInt(localStorage.getItem('logFilePart')) || 0) : 0);
+                fileName = App.pathLogs + currentDate + '_' + part + '.log';
+                var card = Store.SD.card;
+
+                Store.SD.createFile(fileName, function(e){
+                    Store.SD.recover(fileName, function(file){
+                        Tools.textUnblob(file, function(text){
+                            console.log('current log file', file.size);
+
+                            if (file.size > 1000000) {
+                                part += 1;
+                                fileName = App.pathLogs + currentDate + '_' + part + '.log';
+
+                                file = new Blob([buffer.join('\n')], { type : 'text/plain'});
+                            } else {
+                                file = new Blob([text, buffer.join('\n'), '\n'], { type : 'text/plain' });
+                            }
+
+                            var r = card.delete(fileName);
+
+                            r.onsuccess = function(){
+                                var r = card.addNamed(file, fileName);
+
+                                r.onsuccess = function(){
+                                    console.log('log saved!', 'new size is: ', file.size);
+                                    buffer = [];
+                                };
+
+                                r.onerror = callback;
+
+                                localStorage.setItem('logFilePart', part);
+                                localStorage.setItem('logFileDate', currentDate);
+                            };
+
+                            r.onerror = callback;
+                        }, callback, true);
+                    });
+                });
+            }
+        });
+
+        fileWriter.drain = function(){};
+
+        return q.push.bind(q);
+    })()
+
+  }
+
+};
+</pre>
+	</article>
+</section>
+
+
+
+
+
+		</div>
+	</div>
+
+	<div class="clearfix"></div>
+
+	
+
+</div>
+</div>
+
+
+<footer>
+
+
+	<span class="copyright">
+	DocStrap Copyright © 2012-2014 The contributors to the JSDoc3 and DocStrap projects.
+	</span>
+	<br />
+
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.0-dev</a>
+	on Sun Nov 1st 2015 using the <a
+	href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+</span>
+</footer>
+
+<!--<script src="scripts/sunlight.js"></script>-->
+<script src="scripts/docstrap.lib.js"></script>
+<script src="scripts/bootstrap-dropdown.js"></script>
+<script src="scripts/toc.js"></script>
+
+<script>
+$( function () {
+	$( "[id*='$']" ).each( function () {
+		var $this = $( this );
+
+		$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+	} );
+
+	$( "#toc" ).toc( {
+		anchorName  : function ( i, heading, prefix ) {
+			var id = $( heading ).attr( "id" );
+			return id && id.replace(/\~/g, '-inner-').replace(/\./g, '-static-') || ( prefix + i );
+		},
+		selectors   : "h1,h2,h3,h4",
+		showAndHide : false,
+		scrollTo    : "100px"
+	} );
+
+	$( "#toc>ul" ).addClass( "nav nav-pills nav-stacked" );
+	$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+	$( '.dropdown-toggle' ).dropdown();
+	//			$( ".tutorial-section pre, .readme-section pre" ).addClass( "sunlight-highlight-javascript" ).addClass( "linenums" );
+
+	$( ".tutorial-section pre, .readme-section pre" ).each( function () {
+		var $this = $( this );
+
+		var example = $this.find( "code" );
+		exampleText = example.html();
+		var lang = /{@lang (.*?)}/.exec( exampleText );
+		if ( lang && lang[1] ) {
+			exampleText = exampleText.replace( lang[0], "" );
+			example.html( exampleText );
+			lang = lang[1];
+		} else {
+			lang = "javascript";
+		}
+
+		if ( lang ) {
+
+			$this
+			.addClass( "sunlight-highlight-" + lang )
+			.addClass( "linenums" )
+			.html( example.html() );
+
+		}
+	} );
+
+	Sunlight.highlightAll( {
+		lineNumbers : true,
+		showMenu : true,
+		enableDoclinks : true
+	} );
+} );
+</script>
+
+
+
+<!--Navigation and Symbol Display-->
+
+
+<!--Google Analytics-->
+
+
+</body>
+</html>
