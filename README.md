@@ -1,5 +1,7 @@
 LOQUI Instant Messenger
 =====
+
+[![Join the chat at https://gitter.im/yaotifang/im](https://badges.gitter.im/yaotifang/im.svg)](https://gitter.im/yaotifang/im?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 Loqui Instant Messenger unifies all your chat accounts in just one Firefox OS app
 https://loqui.im
 
